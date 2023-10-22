@@ -4,17 +4,21 @@ import requests
 import random
 import math
 from bd import *
-
 import json
 import smtplib
 import ssl
 from letter import html_template
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import ftplib
+import datetime
+import io
 
+with open('config.json', 'r') as f:
+    json_file = json.load(f)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'cb02820a3e94d72c9f950ee10ef7e3f7a35b3f5b'
+app.config['SECRET_KEY'] = json_file['secret_key']
 api = Api(app)
 
 
@@ -286,8 +290,6 @@ class SendMail(Resource):
         try:
             data = request.get_json()
 
-            with open('config.json', 'r') as f:
-                json_file = json.load(f)
             email = json_file['email']
             password = json_file['email_password']
             to_email = data["email"]
@@ -320,6 +322,38 @@ class SendMail(Resource):
         except:
             response_data = {"message": "ERROR"}
             return response_data
+
+
+class SaveData(Resource):
+    def post(self, id):
+        try:
+            host = json_file["ftp_host"]
+            user = json_file["ftp_user"]
+            password = json_file["ftp_password"]
+            ftp = ftplib.FTP(host, user, password)
+
+            date = datetime.datetime.now().strftime('%Y%m%d')
+            dir_exists = False
+            for el in ftp.mlsd():
+                if el[1]["type"] == "dir":
+                    if el[0] == date:
+                        dir_exists = True
+                        break
+            if not dir_exists:
+                ftp.mkd(date)
+            ftp.cwd(date)
+
+            poki = Poki().get(id)
+
+            content = f"# {poki['name']}\n### Характеристики\n* Здоровье: {poki['hp']}\n* Атака: {poki['attack']}\n"
+            content += f"* Тип: {poki['type']}\n* Рост: {poki['height']}\n* Вес: {poki['hp']}"
+            byte = content.encode('utf-8')
+            ftp.storlines(f'STOR {poki["name"]}.md', fp=io.BytesIO(byte))
+
+            ftp.quit()
+            return {"message": "OK"}
+        except:
+            return {"message": "ERROR"}
 
 
 @app.route("/")
@@ -379,6 +413,7 @@ api.add_resource(Fighting, '/fight')
 api.add_resource(Attack, '/fight/<int:val>')
 api.add_resource(Fast, '/fight/fast')
 api.add_resource(SendMail, '/send_mail')
+api.add_resource(SaveData, '/save/<int:id>')
 
 if __name__ == "__main__":
     app.run(debug=True)
