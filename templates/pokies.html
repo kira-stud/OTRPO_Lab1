@@ -42,9 +42,9 @@
                 <tbody class="myTable">
                     {% for p in poki.pokemons %}
                     <tr>
-                        <td><img onclick="location.href='/poki/{{p.id}}'" src="{{ p.image }}"></td>
+                        <td><img onclick="location.href='/poki/{{p.id}}?page={{poki.page}}&search={{poki.search}}'" src="{{ p.image }}"></td>
                         <td>
-                            <div onclick="location.href='/poki/{{p.id}}'" class="fs-4">{{ p.name }}</div><br>
+                            <div onclick="location.href='/poki/{{p.id}}?page={{poki.page}}&search={{poki.search}}'" class="fs-4">{{ p.name }}</div><br>
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <div>Атака: {{ p.attack }}</div>
