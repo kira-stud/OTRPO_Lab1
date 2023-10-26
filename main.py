@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, abort, jsonify
+from flask import Flask, render_template, request, session, abort
 from flask_restful import Api, Resource
 import requests
 import random
@@ -31,7 +31,7 @@ class PokemonApi(Resource):
             search = request.args.get('search', '')
             page = request.args.get('page', 1, type=int)
 
-            cache_key = "all" + str(page) + str(search)
+            cache_key = "all" + str(page) + "_" + str(search)
             cache_res = redis_client.get(cache_key)
             if cache_res is not None:
                 return json.loads(cache_res)
