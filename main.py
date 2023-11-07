@@ -13,6 +13,7 @@ from email.mime.multipart import MIMEMultipart
 import ftplib
 import datetime
 import io
+import redis
 
 with open('config.json', 'r') as f:
     json_file = json.load(f)
@@ -21,12 +22,20 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = json_file['secret_key']
 api = Api(app)
 
+redis_client = redis.Redis(host=json_file['redis_host'], port=6379, db=0)
+
 
 class PokemonApi(Resource):
     def get(self):
         try:
             search = request.args.get('search', '')
             page = request.args.get('page', 1, type=int)
+
+            cache_key = "all" + str(page) + "_" + str(search)
+            cache_res = redis_client.get(cache_key)
+            if cache_res is not None:
+                return json.loads(cache_res)
+
             per_page = 4
             offset = (page - 1) * per_page
 
@@ -60,6 +69,9 @@ class PokemonApi(Resource):
                 }
                 pokies_data["pokemons"].append(pokemon_stats)
 
+            redis_client.set(cache_key, json.dumps(pokies_data))
+            redis_client.expire(cache_key, 3600)
+
             return pokies_data
         except:
             return {"pokemons": [], "page": 1, "max_page": 1, "search": ""}
@@ -68,6 +80,11 @@ class PokemonApi(Resource):
 class Poki(Resource):
     def get(self, id):
         try:
+            cache_key = str(id)
+            cache_res = redis_client.get(cache_key)
+            if cache_res:
+                return json.loads(cache_res)
+
             url = "https://pokeapi.co/api/v2/pokemon/" + str(id)
             pokemon = requests.get(url)
             if not pokemon.ok:
@@ -93,6 +110,8 @@ class Poki(Resource):
                     'height': pokemon['height'],
                     'weight': pokemon['weight']
                 }
+            redis_client.set(cache_key, json.dumps(pokemon_stats))
+            redis_client.expire(cache_key, 3600)
 
             return pokemon_stats
         except:
@@ -360,15 +379,20 @@ class SaveData(Resource):
 def index():
     search = request.args.get('search', '')
     page = request.args.get('page', 1, type=int)
-    url = f"http://localhost:5000/pokemon/list?search={search}&page={page}"
-    pokies_data = requests.get(url).json()
+    with app.test_request_context("/pokemon/list", query_string={'search': search, 'page': page}):
+        response = app.dispatch_request()
+        pokies_data = response.get_json()
 
     return render_template("pokies.html", poki=pokies_data)
 
 
 @app.route("/poki/<id>")
 def pokemon(id):
+    page = request.args.get("page", 1)
+    search = request.args.get("search", "")
     pokemon_stats = Poki().get(id)
+    pokemon_stats['page'] = page
+    pokemon_stats['search'] = search
     return render_template("poki.html", poki=pokemon_stats)
 
 
