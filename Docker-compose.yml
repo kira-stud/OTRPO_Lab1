@@ -1,0 +1,49 @@
+version: '3.1'
+
+services:
+  pokemons:
+#    build: .
+    image: kvikkira/otrpo_lab1
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - "db"
+    env_file:
+      - .env.docker
+  db:
+    container_name: db
+    image: postgres
+    env_file:
+      - .env.docker
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - "./init.sql:/docker-entrypoint-initdb.d/init.sql"
+    environment:
+      - "POSTGRES_PASSWORD=${POSTGRESQL_PSW}"
+      - "POSTGRES_USER=${POSTGRESQL_USER}"
+      - "POSTGRES_DB=${POSTGRESQL_DB}"
+  rediska:
+      container_name: rediska
+      image: redis
+      restart: always
+      env_file:
+        - .env.docker
+      ports:
+        - "6379:6379"
+      environment:
+        - "REDIS_PASSWORD=${REDIS_PSW}"
+        - "REDIS_PORT=${REDIS_PORT}"
+        - "REDIS_DATABASES=${REDIS_DB}"
+  ftp:
+    image: delfer/alpine-ftp-server
+    container_name: ftp
+    env_file:
+      - .env.docker
+    ports:
+      - "21:21"
+    environment:
+      - "USERS=${FTP_USER}|${FTP_PSW}|/ftp/ftp"
+    restart: always

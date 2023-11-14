@@ -1,0 +1,7 @@
+flask
+flask_restful
+requests
+redis
+sqlalchemy
+psycopg2
+python-dotenv

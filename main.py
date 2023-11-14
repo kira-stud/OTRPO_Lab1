@@ -15,14 +15,11 @@ import datetime
 import io
 import redis
 
-with open('config.json', 'r') as f:
-    json_file = json.load(f)
-
 app = Flask(__name__)
-app.config['SECRET_KEY'] = json_file['secret_key']
+app.config['SECRET_KEY'] = SECRET_KEY
 api = Api(app)
 
-redis_client = redis.Redis(host=json_file['redis_host'], port=6379, db=0)
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 
 
 class PokemonApi(Resource):
@@ -309,8 +306,8 @@ class SendMail(Resource):
         try:
             data = request.get_json()
 
-            email = json_file['email']
-            password = json_file['email_password']
+            email = EMAIL
+            password = EMAIL_PSW
             to_email = data["email"]
 
             message = MIMEMultipart('alternative')
@@ -346,29 +343,19 @@ class SendMail(Resource):
 class SaveData(Resource):
     def post(self, id):
         try:
-            host = json_file["ftp_host"]
-            user = json_file["ftp_user"]
-            password = json_file["ftp_password"]
-            ftp = ftplib.FTP(host, user, password)
-
+            ftp = ftplib.FTP(FTP_HOST, FTP_USER, FTP_PSW)
             date = datetime.datetime.now().strftime('%Y%m%d')
-            dir_exists = False
-            for el in ftp.mlsd():
-                if el[1]["type"] == "dir":
-                    if el[0] == date:
-                        dir_exists = True
-                        break
-            if not dir_exists:
+            try:
                 ftp.mkd(date)
+            except:
+                pass
             ftp.cwd(date)
-
             poki = Poki().get(id)
 
             content = f"# {poki['name']}\n### Характеристики\n* Здоровье: {poki['hp']}\n* Атака: {poki['attack']}\n"
             content += f"* Тип: {poki['type']}\n* Рост: {poki['height']}\n* Вес: {poki['hp']}"
             byte = content.encode('utf-8')
             ftp.storlines(f'STOR {poki["name"]}.md', fp=io.BytesIO(byte))
-
             ftp.quit()
             return {"message": "OK"}
         except:
@@ -399,8 +386,9 @@ def pokemon(id):
 @app.route("/<int:id>/fight")
 def fight(id):
     bot_id = Rand().get()['id']
-    url = f"http://localhost:5000/fight?user_id={id}&bot_id={bot_id}"
-    pokies = requests.get(url).json()
+    with app.test_request_context("/fight", query_string={'user_id': id, 'bot_id': bot_id}):
+        response = app.dispatch_request()
+        pokies = response.get_json()
 
     session['hp'] = pokies["player_poki"]['hp']
     session['bot_hp'] = pokies["bot_poki"]['hp']
@@ -440,4 +428,4 @@ api.add_resource(SendMail, '/send_mail')
 api.add_resource(SaveData, '/save/<int:id>')
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=80, debug=True)
