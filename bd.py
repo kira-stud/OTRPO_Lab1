@@ -2,8 +2,9 @@ from sqlalchemy import types, Column, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from settings import *
 
-connection_string = "postgresql://postgres:Passw0rd@localhost:5432/Pokemon"
+connection_string = f"postgresql://{POSTGRESQL_USER}:{POSTGRESQL_PSW}@{POSTGRESQL_HOST}:{POSTGRESQL_PORT}/{POSTGRESQL_DB}"
 engine = create_engine(connection_string, echo=True)
 Session = sessionmaker(bind=engine)
 sess = Session()
