@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from settings import *
 
 connection_string = f"postgresql://{POSTGRESQL_USER}:{POSTGRESQL_PSW}@{POSTGRESQL_HOST}:{POSTGRESQL_PORT}/{POSTGRESQL_DB}"
-engine = create_engine(connection_string, echo=True)
+engine = create_engine(connection_string, echo=False)
 Session = sessionmaker(bind=engine)
 sess = Session()
 
@@ -34,4 +34,4 @@ class Fight(Base):
                % (self.id, self.player_id, self.bot_id, self.winner_id, self.rounds_count)
 
 
-Base.metadata.create_all(engine)
+# Base.metadata.create_all(engine)

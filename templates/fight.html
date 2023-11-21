@@ -43,7 +43,7 @@
             {% if poki['player_poki'].hp > 0 and  poki['bot_poki'].hp > 0 %}
             <form action="/attack" method="post" enctype="multipart/form-data">
                 <input min="1" max="10" type="number" value="1" id="number">
-                <button class="btn btn-danger" type="submit">Атака!</button>
+                <button id="attackk" class="btn btn-danger" type="submit">Атака!</button>
             </form>
             {% if not poki['player_poki'].val %}
             <form action="/autofight" method="get" class="mt-3">

@@ -27,14 +27,12 @@ class PokemonApi(Resource):
         try:
             search = request.args.get('search', '')
             page = request.args.get('page', 1, type=int)
+            page = max(1, page)
 
             cache_key = "all" + str(page) + "_" + str(search)
             cache_res = redis_client.get(cache_key)
             if cache_res is not None:
                 return json.loads(cache_res)
-
-            per_page = 4
-            offset = (page - 1) * per_page
 
             pokies0 = []
             url = 'https://pokeapi.co/api/v2/pokemon'
@@ -49,7 +47,11 @@ class PokemonApi(Resource):
                         pokies.append(p)
             else:
                 pokies = pokies0
+
+            per_page = 4
             max_page = math.ceil(len(pokies) / per_page)
+            page = min(max_page, page)
+            offset = (page - 1) * per_page
             pokies = pokies[offset:offset + per_page]
 
             pokies_data = {"pokemons": [], "page": page, "max_page": max_page, "search": search}
@@ -178,6 +180,18 @@ class Fighting(Resource):
                     'hp': bot['stats'][0]['base_stat']
                 }
 
+            session['hp'] = player_poki['hp']
+            session['bot_hp'] = bot_poki['hp']
+            session['attack'] = player_poki['attack']
+            session['bot_attack'] = bot_poki['attack']
+            session['id'] = user_id
+            session['bot_id'] = bot_id
+            session['name'] = player_poki['name']
+            session['bot_name'] = bot_poki['name']
+            session['image'] = player_poki['image']
+            session['bot_image'] = bot_poki['image']
+            session['rounds'] = []
+
             return {"player_poki": player_poki, "bot_poki": bot_poki}
         except:
             return {"player_poki": {'name': "unknown", 'image': "unknown", 'attack': 1, 'hp': 1},
@@ -186,33 +200,11 @@ class Fighting(Resource):
 
 class Attack(Resource):
     def post(self, val):
-        try:
-            if len(session) < 11:
-                abort(404)
-            elif val < 1 or val > 10:
-                player_poki = {
-                    'name': session['name'],
-                    'image': session['image'],
-                    'attack': session['attack'],
-                    'hp': session['hp'],
-                    'val': val
-                }
-                bot_poki = {
-                    'name': session['bot_name'],
-                    'image': session['bot_image'],
-                    'attack': session['bot_attack'],
-                    'hp': session['bot_hp'],
-                    'val': -1
-                }
-                return {"player_poki": player_poki, "bot_poki": bot_poki, "rounds": session['rounds']}
-
-            bot_val = random.randint(1, 10)
-            session['rounds'].append(f"{val} vs {bot_val}")
-            if bot_val % 2 != val % 2:
-                session['hp'] -= session['bot_attack']
-            else:
-                session['bot_hp'] -= session['attack']
+        if len(session) < 11:
+            abort(404)
+        elif val < 1 or val > 10:
             player_poki = {
+                'id': session['id'],
                 'name': session['name'],
                 'image': session['image'],
                 'attack': session['attack'],
@@ -220,6 +212,31 @@ class Attack(Resource):
                 'val': val
             }
             bot_poki = {
+                'id': session['bot_id'],
+                'name': session['bot_name'],
+                'image': session['bot_image'],
+                'attack': session['bot_attack'],
+                'hp': session['bot_hp'],
+                'val': -1
+            }
+            return {"player_poki": player_poki, "bot_poki": bot_poki, "rounds": session['rounds']}
+        try:
+            bot_val = random.randint(1, 10)
+            session['rounds'].append(f"{val} vs {bot_val}")
+            if bot_val % 2 != val % 2:
+                session['hp'] -= session['bot_attack']
+            else:
+                session['bot_hp'] -= session['attack']
+            player_poki = {
+                'id': session['id'],
+                'name': session['name'],
+                'image': session['image'],
+                'attack': session['attack'],
+                'hp': session['hp'],
+                'val': val
+            }
+            bot_poki = {
+                'id': session['bot_id'],
                 'name': session['bot_name'],
                 'image': session['bot_image'],
                 'attack': session['bot_attack'],
@@ -250,9 +267,9 @@ class Attack(Resource):
 
 class Fast(Resource):
     def get(self):
+        if len(session) < 11:
+            abort(404)
         try:
-            if len(session) < 11:
-                abort(404)
             hp = session['hp']
             bot_hp = session['bot_hp']
             attack = session['attack']
@@ -262,11 +279,13 @@ class Fast(Resource):
             rounds = []
 
             player = {
+                'id': id,
                 'name': session['name'],
                 'image': session['image'],
                 'attack': session['attack']
             }
             bot = {
+                'id': bot_id,
                 'name': session['bot_name'],
                 'image': session['bot_image'],
                 'attack': session['bot_attack']
