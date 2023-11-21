@@ -31,7 +31,7 @@
         <h3 class="mb-3 mt-3">Покемоны</h3>
         <form action="/" method="get" enctype="multipart/form-data">
             <input type="text" placeholder="Поиск" name="search" value="{{poki.search}}" class="mb-2">
-            <input type="submit" value="Найти">
+            <input id="finder" type="submit" value="Найти">
         </form>
         <div class="d-flex justify-content-between align-items-center flex-column">
             <table class="table table-bordered table-dark table-hover" style="width: 400px">
@@ -44,13 +44,13 @@
                     <tr>
                         <td><img onclick="location.href='/poki/{{p.id}}?page={{poki.page}}&search={{poki.search}}'" src="{{ p.image }}"></td>
                         <td>
-                            <div onclick="location.href='/poki/{{p.id}}?page={{poki.page}}&search={{poki.search}}'" class="fs-4">{{ p.name }}</div><br>
+                            <div id="pok_name" onclick="location.href='/poki/{{p.id}}?page={{poki.page}}&search={{poki.search}}'" class="fs-4">{{ p.name }}</div><br>
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <div>Атака: {{ p.attack }}</div>
                                     <div>Здоровье: {{ p.hp }}</div>
                                 </div>
-                                <button class="btn btn-primary btn-sm" onclick="location.href='/{{p.id}}/fight'" type="button">Выбрать</button>
+                                <button id="choice" class="btn btn-primary btn-sm" onclick="location.href='/{{p.id}}/fight'" type="button">Выбрать</button>
                                 <button id="save{{ p.id }}" class="btn btn-primary btn-sm" onclick="Save({{p.id}})" type="button">Сохранить</button>
                                 <button id="saved{{ p.id }}" hidden class="btn btn-success btn-sm" type="button">Сохранено</button>
                             </div>

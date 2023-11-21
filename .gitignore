@@ -2,3 +2,4 @@ venv
 .idea
 config.json
 .env.docker
+.env.test

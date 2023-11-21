@@ -1,7 +1,7 @@
 from os import environ
 from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=".env.docker")
+# load_dotenv(dotenv_path=".env.docker")
+load_dotenv(dotenv_path=".env.test")
 
 SECRET_KEY = environ.get('SECRET_KEY')
 REDIS_HOST = environ.get('REDIS_HOST')
