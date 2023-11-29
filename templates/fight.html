@@ -42,7 +42,7 @@
             <p class="fs-3">Здоровье: <input readonly type="button" id="player_hp" value="{{ poki['player_poki'].hp }}"></p>
             {% if poki['player_poki'].hp > 0 and  poki['bot_poki'].hp > 0 %}
             <form action="/attack" method="post" enctype="multipart/form-data">
-                <input min="1" max="10" type="number" value="1" id="number">
+                <input name="val" min="1" max="10" type="number" value="1" id="number">
                 <button id="attackk" class="btn btn-danger" type="submit">Атака!</button>
             </form>
             {% if not poki['player_poki'].val %}
