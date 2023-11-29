@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, abort
+from flask import Flask, render_template, request, session, abort, redirect
 from flask_restful import Api, Resource
 import requests
 import random
@@ -7,19 +7,35 @@ from bd import *
 import json
 import smtplib
 import ssl
-from letter import html_template
+from letter import *
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import ftplib
 import datetime
 import io
 import redis
+from passlib.context import CryptContext
+from flask_oauthlib.client import OAuth
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 api = Api(app)
+oauth = OAuth()
+yandex = oauth.remote_app(
+                'yandex',
+                consumer_key=YANDEX_CLIENT_ID,
+                consumer_secret=YANDEX_CLIENT_SECRET,
+                request_token_params={'scope': 'login:email'},
+                base_url='https://login.yandex.ru/',
+                request_token_url=None,
+                access_token_method='POST',
+                access_token_url='https://oauth.yandex.ru/token',
+                authorize_url='https://oauth.yandex.ru/authorize'
+            )
 
-redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+pwd_context = CryptContext(schemes=["argon2"])
+
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 
 class PokemonApi(Resource):
@@ -247,15 +263,22 @@ class Attack(Resource):
 
             if session['hp'] <= 0 or session['bot_hp'] <= 0:
                 res = session['id'] if session['bot_hp'] <= 0 else session['bot_id']
-                fight = Fight(session['id'], session['bot_id'], res, len(rounds))
+                user_id = None
+                if 'user_id' in session:
+                    user_id = session['user_id']
+                fight = Fight(user_id, session['id'], session['bot_id'], res, len(rounds))
                 sess.add(fight)
                 sess.commit()
                 try:
                     pass
                 except:
                     sess.rollback()
-
-                session.clear()
+                if 'user_id' in session:
+                    user_id = session['user_id']
+                    session.clear()
+                    session['user_id'] = user_id
+                else:
+                    session.clear()
                 return {"player_poki": player_poki, "bot_poki": bot_poki, "rounds": rounds, "fight_id": fight.id}
 
             return {"player_poki": player_poki, "bot_poki": bot_poki, "rounds": rounds}
@@ -290,7 +313,12 @@ class Fast(Resource):
                 'image': session['bot_image'],
                 'attack': session['bot_attack']
             }
-            session.clear()
+            if 'user_id' in session:
+                user_id = session['user_id']
+                session.clear()
+                session['user_id'] = user_id
+            else:
+                session.clear()
 
             while hp > 0 and bot_hp > 0:
                 val = random.randint(1, 10)
@@ -304,7 +332,10 @@ class Fast(Resource):
             bot['hp'] = bot_hp
 
             res = id if bot_hp <= 0 else bot_id
-            fight = Fight(id, bot_id, res, len(rounds))
+            user_id = None
+            if 'user_id' in session:
+                user_id = session['user_id']
+            fight = Fight(user_id, id, bot_id, res, len(rounds))
             sess.add(fight)
             sess.commit()
             try:
@@ -381,6 +412,139 @@ class SaveData(Resource):
             return {"message": "ERROR"}
 
 
+def send_code(code, send_to):
+    try:
+        email = EMAIL
+        password = EMAIL_PSW
+        to_email = send_to
+
+        message = MIMEMultipart('alternative')
+        message['Subject'] = 'Код подтверждения'
+        message['From'] = email
+        message['To'] = to_email
+
+        text = "Вы уверены, что это вы?"
+        html = code_html_template.format(code)
+        part1 = MIMEText(text, "plain")
+        part2 = MIMEText(html, "html")
+        message.attach(part1)
+        message.attach(part2)
+
+        context = ssl.create_default_context()
+
+        server = smtplib.SMTP('smtp.mail.ru', 25)
+        server.starttls(context=context)
+        server.login(email, password)
+        server.sendmail(email, to_email, message.as_string())
+        server.quit()
+
+        return {"message": "OK", 'email': send_to}
+    except:
+        return {"message": "ERROR"}
+
+
+class SignUp(Resource):
+    def post(self):
+        try:
+            data = request.get_json()
+            user = sess.query(User).filter_by(email=data['email']).first()
+            if user is not None and user.password != 'koko':
+                return {"message": "EXISTED"}
+
+            p_hash = pwd_context.hash(data['password'])
+            code = ""
+            for i in range(6):
+                code += str(random.randint(0, 9))
+            val = {"password": p_hash, "code": pwd_context.hash(code)}
+            if user is not None:
+                val = {"password": p_hash, "code": pwd_context.hash(code), "change": "yes"}
+            redis_client.set(data['email'], json.dumps(val))
+            redis_client.expire(data['email'], 300)
+            session['email'] = data['email']
+            return send_code(code, data['email'])
+        except:
+            return {"message": "ERROR"}
+
+
+class SignIn(Resource):
+    def post(self):
+        try:
+            data = request.get_json()
+            user = sess.query(User).filter_by(email=data['email']).first()
+            if user is None or user.password == "koko" or not pwd_context.verify(data['password'], user.password):
+                return {"message": "INCORRECT"}
+            code = ""
+            for i in range(6):
+                code += str(random.randint(0, 9))
+            redis_client.set(data['email'], json.dumps({"code": pwd_context.hash(code)}))
+            redis_client.expire(data['email'], 300)
+            session['email'] = data['email']
+            return send_code(code, data['email'])
+        except:
+            return {"message": "ERROR"}
+
+
+class SignForgot(Resource):
+    def post(self):
+        try:
+            data = request.get_json()
+            user = sess.query(User).filter_by(email=data['email']).all()
+            if len(user) == 0:
+                return {"message": "NOT FOUND"}
+            p_hash = pwd_context.hash(data['password'])
+            code = ""
+            for i in range(6):
+                code += str(random.randint(0, 9))
+            redis_client.set(data['email'],
+                             json.dumps({"password": p_hash, "code": pwd_context.hash(code), "change": "yes"}))
+            redis_client.expire(data['email'], 300)
+            session['email'] = data['email']
+            return send_code(code, data['email'])
+        except:
+            return {"message": "ERROR"}
+
+
+class SignConfirm(Resource):
+    def post(self, code):
+        try:
+            if 'email' not in session:
+                return {"message": "INCORRECT"}
+            data = json.loads(redis_client.get(session['email']))
+            if not pwd_context.verify(code, data['code']):
+                return {"message": "INCORRECT"}
+            user = sess.query(User).filter_by(email=session['email']).first()
+            if user is not None and "change" not in data:
+                session.clear()
+                session['user_id'] = user.id
+                return {"message": "OK", 'user_id': user.id}
+            elif "change" in data:
+                user = sess.query(User).filter_by(email=session['email'])
+                user.update({"password": data['password']})
+                sess.commit()
+                session.clear()
+                user_id = user.first().id
+                session['user_id'] = user_id
+                return {"message": "OK", 'user_id': user_id}
+            else:
+                user = User(session['email'], data['password'])
+                sess.add(user)
+                sess.commit()
+                session.clear()
+                session['user_id'] = user.id
+                return {"message": "OK", 'user_id': user.id}
+        except:
+            return {"message": "ERROR"}
+
+
+class SignOut(Resource):
+    def post(self):
+        try:
+            session.pop('user_id', None)
+            return {"message": "OK"}
+        except:
+            return {"message": "ERROR"}
+
+
 @app.route("/")
 def index():
     search = request.args.get('search', '')
@@ -388,8 +552,9 @@ def index():
     with app.test_request_context("/pokemon/list", query_string={'search': search, 'page': page}):
         response = app.dispatch_request()
         pokies_data = response.get_json()
+    user = session['user_id'] if 'user_id' in session else "None"
 
-    return render_template("pokies.html", poki=pokies_data)
+    return render_template("pokies.html", poki=pokies_data, user=user)
 
 
 @app.route("/poki/<id>")
@@ -426,7 +591,7 @@ def fight(id):
 
 @app.route("/attack", methods=['POST'])
 def attacka():
-    val = request.args.get('val', 1, type=int)
+    val = request.form.get('val', 1, type=int)
     stats = Attack().post(val)
     return render_template("fight.html", poki=stats)
 
@@ -437,6 +602,132 @@ def auto_fight():
     return render_template("fight.html", poki=stats)
 
 
+@app.route("/sign/up", methods=['GET', 'POST'])
+def sign_up():
+    if request.method == "GET":
+        return render_template("sign_up.html")
+
+    email = request.form.get('email')
+    password = request.form.get('psw')
+    if email is None or password is None:
+        return redirect('/sign/up')
+    data = {
+        'email': email,
+        'password': password
+    }
+    host = request.host_url
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(host + "/signup", data=json.dumps(data), headers=headers)
+    result = response.json()
+    if result['message'] == "OK":
+        session['email'] = result['email']
+        return redirect('/sign/confirm')
+    return redirect('/')
+
+
+@app.route("/sign/in", methods=['GET', 'POST'])
+def sign_in():
+    if request.method == "GET":
+        return render_template("sign_in.html")
+
+    email = request.form.get('email')
+    password = request.form.get('psw')
+    if email is None or password is None:
+        return redirect('/sign/in')
+    data = {
+        'email': email,
+        'password': password
+    }
+    host = request.host_url
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(host + "/signin", data=json.dumps(data), headers=headers)
+    result = response.json()
+    if result['message'] == "OK":
+        session['email'] = result['email']
+        return redirect('/sign/confirm')
+
+    return redirect('/sign/in')
+
+
+@app.route("/log/in", methods=['POST'])
+def log_in():
+    return yandex.authorize(callback='http://localhost/log/auth')
+
+
+@app.route("/log/auth", methods=['GET', 'POST'])
+def authorize():
+    response = yandex.authorized_response()
+    if response is None or 'access_token' not in response:
+        return redirect('/sign/in')
+
+    token = response['access_token']
+    params = {
+        'format': 'json',
+        'oauth_token': token
+    }
+    resp = requests.get('https://login.yandex.ru/info', params=params)
+
+    email = resp.json()['default_email']
+
+    user = sess.query(User).filter_by(email=email).first()
+    if user is not None:
+        session['user_id'] = user.id
+    else:
+        user = User(email, 'koko')
+        sess.add(user)
+        sess.commit()
+        session['user_id'] = user.id
+    return redirect('/')
+
+
+@app.route("/forgot", methods=['GET', 'POST'])
+def forgot():
+    if request.method == "GET":
+        return render_template("forgot.html")
+
+    email = request.form.get('email')
+    password = request.form.get('psw')
+    if email is None or password is None:
+        return redirect('/forgot')
+    data = {
+        'email': email,
+        'password': password
+    }
+    host = request.host_url
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(host + "/signforgot", data=json.dumps(data), headers=headers)
+    result = response.json()
+    if result['message'] == "OK":
+        session['email'] = result['email']
+        return redirect('/sign/confirm')
+
+    return redirect('/forgot')
+
+
+@app.route("/sign/confirm", methods=['GET', 'POST'])
+def sign_confirm():
+    if request.method == "GET":
+        return render_template("sign_confirm.html")
+
+    code = request.form.get('code')
+    if code is None:
+        return redirect('/sign/confirm')
+
+    result = SignConfirm().post(code)
+    if result['message'] == "OK":
+        session['user_id'] = result['user_id']
+        return redirect('/')
+    return redirect('/sign/confirm')
+
+
+@app.route("/sign/out", methods=['POST'])
+def sign_out():
+    result = SignOut().post()
+    if result['message'] == "OK":
+        session.pop('user_id', None)
+    return redirect('/')
+
+
 api.add_resource(PokemonApi, '/pokemon/list')
 api.add_resource(Poki, '/pokemon/<int:id>')
 api.add_resource(Rand, '/pokemon/random')
@@ -445,6 +736,11 @@ api.add_resource(Attack, '/fight/<int:val>')
 api.add_resource(Fast, '/fight/fast')
 api.add_resource(SendMail, '/send_mail')
 api.add_resource(SaveData, '/save/<int:id>')
+api.add_resource(SignUp, '/signup')
+api.add_resource(SignIn, '/signin')
+api.add_resource(SignForgot, '/signforgot')
+api.add_resource(SignConfirm, '/signconfirm/<code>')
+api.add_resource(SignOut, '/signout')
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=80, debug=True)

@@ -212,7 +212,7 @@ class TestUI(unittest.TestCase):
         self.driver = webdriver.Chrome(service=service, options=options)
 
     def test_list(self):
-        self.driver.get('http://192.168.2.46/')
+        self.driver.get('http://127.0.0.1/')
         data = self.app.get('/pokemon/list', query_string={'search': '', 'page': 1}).json['pokemons']
         table = self.driver.find_element(By.XPATH, "//*[@class=\"myTable\"]")
         rows = table.find_elements(By.TAG_NAME, "tr")
@@ -225,7 +225,7 @@ class TestUI(unittest.TestCase):
             self.assertEqual(cell_text[3], f"Здоровье: {pok['hp']}")
 
     def test_pok_page(self):
-        self.driver.get('http://192.168.2.46/')
+        self.driver.get('http://127.0.0.1/')
         data = self.app.get('/pokemon/1').json
         self.driver.find_element(By.XPATH, "//*[@id=\"pok_name\"]").click()
         table = self.driver.find_element(By.XPATH, "//*[@class=\"myTable\"]")
@@ -241,7 +241,7 @@ class TestUI(unittest.TestCase):
         self.assertEqual(int(texts[4]), data['weight'])
 
     def test_search(self):
-        self.driver.get('http://192.168.2.46/')
+        self.driver.get('http://127.0.0.1/')
         search_input = self.driver.find_element(By.XPATH, "//*[@name=\"search\"]")
         search_input.send_keys("bul")
         self.driver.find_element(By.XPATH, "//*[@id=\"finder\"]").click()
@@ -254,7 +254,7 @@ class TestUI(unittest.TestCase):
             self.assertIn('bul', cell_text[0])
 
     def test_attack(self):
-        self.driver.get('http://192.168.2.46/')
+        self.driver.get('http://127.0.0.1/')
         self.driver.find_element(By.XPATH, "//*[@id=\"choice\"]").click()
         old_hp = self.driver.find_element(By.XPATH, "//*[@id=\"player_hp\"]").get_attribute("value")
         old_bot_hp = self.driver.find_element(By.XPATH, "//*[@id=\"bot_hp\"]").get_attribute("value")

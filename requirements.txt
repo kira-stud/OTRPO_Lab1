@@ -5,3 +5,7 @@ redis
 sqlalchemy
 psycopg2
 python-dotenv
+passlib
+argon2_cffi
+Flask-OAuthlib==0.9.6
+Werkzeug==2.3.7
