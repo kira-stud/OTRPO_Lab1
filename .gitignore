@@ -3,3 +3,4 @@ venv
 config.json
 .env.docker
 .env.test
+grafana-data

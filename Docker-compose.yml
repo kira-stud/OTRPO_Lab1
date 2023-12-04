@@ -4,6 +4,7 @@ services:
   pokemons:
     build: .
     image: kvikkira/otrpo_lab1
+    container_name: pokemons
     restart: always
     ports:
       - "80:80"
@@ -46,4 +47,14 @@ services:
       - "21:21"
     environment:
       - "USERS=${FTP_USER}|${FTP_PSW}|/ftp/ftp"
+    restart: always
+  grafana:
+    container_name: grafana
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - "GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PSW}"
+    volumes:
+      - "./grafana-data:/var/lib/grafana"
     restart: always
