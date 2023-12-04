@@ -143,11 +143,14 @@ class Poki(Resource):
 
 
 class Rand(Resource):
-    def get(self):
+    def get(self, c=-1):
         try:
             url = 'https://pokeapi.co/api/v2/pokemon/'
             count = requests.get(url).json()['count']
-            bot_num = random.randint(1, count)
+            if c == -1:
+                bot_num = random.randint(1, count)
+            else:
+                bot_num = random.randint(1, c)
             bot_id = requests.get(url, params={'limit': 1, 'offset': bot_num - 1}).json()['results'][0]['url'].split('/')[-2]
 
             return {"id": bot_id}
@@ -545,6 +548,25 @@ class SignOut(Resource):
             return {"message": "ERROR"}
 
 
+class FakeFights(Resource):
+    def get(self):
+        for j in range(2):
+            limit = 30 if j == 0 else 6
+            month = 11 if j == 0 else 12
+            for i in range(250):
+                print(i)
+                pl = Rand().get(50)['id']
+                bot = Rand().get(50)['id']
+                winner = pl if i % 2 == 0 else bot
+                day = random.randint(1, limit)
+                date = str(2023) + "-" + str(month) + "-" + str(day)
+                rounds = random.randint(1, 10) if day % 2 == 0 else random.randint(1, 5)
+                fight = Fight(None, pl, bot, winner, rounds, date)
+                sess.add(fight)
+        sess.commit()
+        return {"message": "OK"}
+
+
 @app.route("/")
 def index():
     search = request.args.get('search', '')
@@ -741,6 +763,7 @@ api.add_resource(SignIn, '/signin')
 api.add_resource(SignForgot, '/signforgot')
 api.add_resource(SignConfirm, '/signconfirm/<code>')
 api.add_resource(SignOut, '/signout')
+api.add_resource(FakeFights, '/fake/fights')
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=80, debug=True)

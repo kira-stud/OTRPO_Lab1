@@ -25,12 +25,13 @@ class Fight(Base):
     rounds_count = Column(types.Integer, nullable=False)
     user = relationship('User', back_populates='fights')
 
-    def __init__(self, user_id, player_id, bot_id, winner_id, rounds_count):
+    def __init__(self, user_id, player_id, bot_id, winner_id, rounds_count, date_time=None):
         self.user_id = user_id
         self.player_id = player_id
         self.bot_id = bot_id
         self.winner_id = winner_id
         self.rounds_count = rounds_count
+        self.date_time = date_time
 
     def __repr__(self):
         return '<Fight: id=%s, user_id=%s, player_id=%s, bot_id=%s, winner_id=%s, rounds_count=%s>'\
